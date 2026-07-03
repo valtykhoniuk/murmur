@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI
 from sqlmodel import Session, select
 
 from app.auth.router import router as auth_router
+from app.characters.router import router as characters_router
 from app.db import engine, get_session
 from app.models.user import User
 from app.seed import seed_users
@@ -19,6 +20,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(characters_router, prefix="/characters", tags=["characters"])
 
 
 @app.get("/health")
