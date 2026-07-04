@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[CharacterRead])
-def list_characters(
+def get_characters(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
