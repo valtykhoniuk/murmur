@@ -11,6 +11,7 @@ class ChatRead(BaseModel):
     id: int
     user_id: int
     character_id: int
+    character_name: str
     created_at: datetime
 
 

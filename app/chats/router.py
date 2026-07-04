@@ -19,13 +19,24 @@ from app.models.user import User
 router = APIRouter()
 
 
+def _chat_to_read(chat: Chat, session: Session) -> ChatRead:
+    character = session.get(Character, chat.character_id)
+    return ChatRead(
+        id=chat.id,
+        user_id=chat.user_id,
+        character_id=chat.character_id,
+        character_name=character.name if character else f"Character #{chat.character_id}",
+        created_at=chat.created_at,
+    )
+
+
 @router.get("", response_model=list[ChatRead])
 def list_chats(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     chats = session.exec(select(Chat).where(Chat.user_id == current_user.id)).all()
-    return chats
+    return [_chat_to_read(chat, session) for chat in chats]
 
 
 @router.post("", response_model=ChatRead)
@@ -52,7 +63,15 @@ def create_chat(
         session.add(greeting)
         session.commit()
 
-    return chat
+    return _chat_to_read(chat, session)
+
+
+@router.get("/{chat_id}", response_model=ChatRead)
+def get_chat(
+    chat: Chat = Depends(get_current_chat),
+    session: Session = Depends(get_session),
+):
+    return _chat_to_read(chat, session)
 
 
 @router.get("/{chat_id}/messages", response_model=list[MessageRead])
