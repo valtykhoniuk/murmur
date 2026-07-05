@@ -5,7 +5,7 @@ class CharacterCreate(BaseModel):
     name: str
     persona: str
     start_message: str
-    avatar_url: str
+    avatar_url: str = ""
 
 
 class CharacterRead(BaseModel):
