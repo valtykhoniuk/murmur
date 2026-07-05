@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
@@ -94,29 +96,31 @@ def send_message(
     chat: Chat = Depends(get_current_chat),
     session: Session = Depends(get_session),
 ):
+    if not os.getenv("OPENAI_API_KEY"):
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured")
+
     user_message = Message(
         chat_id=chat.id,
         role=MessageRole.user,
         content=body.content,
     )
     session.add(user_message)
-    session.flush()
+    session.commit()
+    session.refresh(user_message)
 
     character = session.get(Character, chat.character_id)
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    character_name = character.name
-    persona = character.persona
+
     history = session.exec(
         select(Message)
         .where(Message.chat_id == chat.id)
         .order_by(Message.created_at)
     ).all()
 
-
-    reply = generate_reply(
-        persona=persona,
-        character_name=character_name,
+    assistant_content = generate_reply(
+        persona=character.persona,
+        character_name=character.name,
         history=history,
         user_input=body.content,
     )
@@ -124,11 +128,10 @@ def send_message(
     assistant_message = Message(
         chat_id=chat.id,
         role=MessageRole.character,
-        content=reply,
+        content=assistant_content,
     )
     session.add(assistant_message)
     session.commit()
-    session.refresh(user_message)
     session.refresh(assistant_message)
 
     return SendMessageResponse(
