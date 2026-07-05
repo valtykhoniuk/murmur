@@ -30,7 +30,7 @@ def _prepare_chain_inputs(
     user_input: str,
     settings: ChatSettings,
 ) -> dict:
-    chain_history = history_for_chain(history)
+    chain_history = history_for_chain(history, max_messages=settings.max_messages)
     lc_history = to_langchain_messages(chain_history)
     system_prompt = build_system_prompt(
         character_name,
@@ -67,15 +67,18 @@ def generate_reply(
     max_tokens = REPLY_LENGTH_MAX_TOKENS.get(settings.reply_length)
 
     logger.info(
-        "LLM invoke character=%s history_count=%s model=%s "
-        "temperature=%s reply_length=%s speech_style=%s initiativity=%s max_tokens=%s",
+        "LLM invoke character=%s history_count=%s chain_history_count=%s model=%s "
+        "temperature=%s reply_length=%s speech_style=%s initiativity=%s "
+        "max_messages=%s max_tokens=%s",
         character_name,
         len(history),
+        len(inputs["history"]),
         model,
         settings.temperature,
         settings.reply_length,
         settings.speech_style,
         settings.initiativity,
+        settings.max_messages,
         max_tokens,
     )
 

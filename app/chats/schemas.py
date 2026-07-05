@@ -30,12 +30,14 @@ class ChatSettings(BaseModel):
     reply_length: Literal["short", "medium", "long"] = "medium"
     speech_style: Literal["talkative", "equal", "initiative"] = "equal"
     initiativity: Literal["rock", "medium", "long"] = "medium"
+    max_messages: int = Field(default=20, ge=5, le=30)
 
 class ChatUpdate(BaseModel):
     temperature: float = Field(ge=0.0, le=1.0)
     reply_length: Literal["short", "medium", "long"]
     speech_style: Literal["talkative", "equal", "initiative"]
     initiativity: Literal["rock", "medium", "long"]
+    max_messages: int = Field(ge=5, le=30)
 
 class ChatRead(BaseModel):
     id: int

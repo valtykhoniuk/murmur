@@ -9,6 +9,7 @@ DEFAULT_CHAT_SETTINGS = {
     "reply_length": "medium",
     "speech_style": "equal",
     "initiativity": "medium",
+    "max_messages": 20,
 }
 
 class Chat(SQLModel, table=True):
