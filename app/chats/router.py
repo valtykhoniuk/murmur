@@ -15,6 +15,7 @@ from app.models.character import Character
 from app.models.chat import Chat
 from app.models.message import Message, MessageRole
 from app.models.user import User
+from app.llm.chat_service import generate_reply
 
 router = APIRouter()
 
@@ -101,10 +102,29 @@ def send_message(
     session.add(user_message)
     session.flush()
 
+    character = session.get(Character, chat.character_id)
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    character_name = character.name
+    persona = character.persona
+    history = session.exec(
+        select(Message)
+        .where(Message.chat_id == chat.id)
+        .order_by(Message.created_at)
+    ).all()
+
+
+    reply = generate_reply(
+        persona=persona,
+        character_name=character_name,
+        history=history,
+        user_input=body.content,
+    )
+
     assistant_message = Message(
         chat_id=chat.id,
         role=MessageRole.character,
-        content=f"Echo: {body.content}",
+        content=reply,
     )
     session.add(assistant_message)
     session.commit()
