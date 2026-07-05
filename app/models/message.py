@@ -1,18 +1,12 @@
-from datetime import datetime, timezone
 from enum import StrEnum
-
+from app.utils import utc_now
 from sqlmodel import Field, SQLModel
-
-
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
-
+from datetime import datetime
 
 class MessageRole(StrEnum):
     user = "user"
     character = "character"
     scene = "scene"
-
 
 class Message(SQLModel, table=True):
     __tablename__ = "messages"

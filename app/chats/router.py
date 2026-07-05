@@ -8,18 +8,25 @@ from app.chats.deps import get_current_chat
 from app.chats.schemas import (
     ChatCreate,
     ChatRead,
+    ChatSettings,
+    ChatUpdate,
     MessageCreate,
     MessageRead,
     SendMessageResponse,
 )
 from app.db import get_session
+from app.llm.chat_service import generate_reply
 from app.models.character import Character
-from app.models.chat import Chat
+from app.models.chat import Chat, DEFAULT_CHAT_SETTINGS
 from app.models.message import Message, MessageRole
 from app.models.user import User
-from app.llm.chat_service import generate_reply
 
 router = APIRouter()
+
+
+def _parse_chat_settings(chat: Chat) -> ChatSettings:
+    raw = chat.chat_settings or DEFAULT_CHAT_SETTINGS
+    return ChatSettings.model_validate(raw)
 
 
 def _chat_to_read(chat: Chat, session: Session) -> ChatRead:
@@ -30,6 +37,7 @@ def _chat_to_read(chat: Chat, session: Session) -> ChatRead:
         character_id=chat.character_id,
         character_name=character.name if character else f"Character #{chat.character_id}",
         created_at=chat.created_at,
+        chat_settings=_parse_chat_settings(chat),
     )
 
 
@@ -77,6 +85,19 @@ def get_chat(
     return _chat_to_read(chat, session)
 
 
+@router.patch("/{chat_id}", response_model=ChatRead)
+def update_chat(
+    body: ChatUpdate,
+    chat: Chat = Depends(get_current_chat),
+    session: Session = Depends(get_session),
+):
+    chat.chat_settings = body.model_dump()
+    session.add(chat)
+    session.commit()
+    session.refresh(chat)
+    return _chat_to_read(chat, session)
+
+
 @router.get("/{chat_id}/messages", response_model=list[MessageRead])
 def list_messages(
     chat: Chat = Depends(get_current_chat),
@@ -118,11 +139,13 @@ def send_message(
         .order_by(Message.created_at)
     ).all()
 
+    settings = _parse_chat_settings(chat)
     assistant_content = generate_reply(
         persona=character.persona,
         character_name=character.name,
         history=history,
         user_input=body.content,
+        settings=settings,
     )
 
     assistant_message = Message(
