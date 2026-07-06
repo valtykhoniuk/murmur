@@ -10,13 +10,18 @@ def delete_chat(session: Session, chat: Chat) -> None:
         select(Summary).where(Summary.chat_id == chat.id)
     ).all()
     for summary in summaries:
+        summary.up_to_message_id = None
+        session.add(summary)
+    for summary in summaries:
         session.delete(summary)
+    session.flush()
 
     messages = session.exec(
         select(Message).where(Message.chat_id == chat.id)
     ).all()
     for message in messages:
         session.delete(message)
+    session.flush()
 
     session.delete(chat)
 
