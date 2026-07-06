@@ -4,11 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.auth.deps import get_current_user
+from app.chats.cleanup import delete_chat
+from app.chats.demo_limit import ensure_demo_can_send
 from app.chats.deps import get_current_chat
+from app.chats.helpers import chat_to_read, parse_chat_settings
 from app.chats.schemas import (
     ChatCreate,
     ChatRead,
-    ChatSettings,
     ChatUpdate,
     MessageCreate,
     MessageRead,
@@ -17,28 +19,11 @@ from app.chats.schemas import (
 from app.db import get_session
 from app.llm.chat_service import run_chat_graph
 from app.models.character import Character
-from app.models.chat import Chat, DEFAULT_CHAT_SETTINGS
+from app.models.chat import Chat
 from app.models.message import Message, MessageRole
 from app.models.user import User
 
 router = APIRouter()
-
-
-def _parse_chat_settings(chat: Chat) -> ChatSettings:
-    raw = chat.chat_settings or DEFAULT_CHAT_SETTINGS
-    return ChatSettings.model_validate(raw)
-
-
-def _chat_to_read(chat: Chat, session: Session) -> ChatRead:
-    character = session.get(Character, chat.character_id)
-    return ChatRead(
-        id=chat.id,
-        user_id=chat.user_id,
-        character_id=chat.character_id,
-        character_name=character.name if character else f"Character #{chat.character_id}",
-        created_at=chat.created_at,
-        chat_settings=_parse_chat_settings(chat),
-    )
 
 
 @router.get("", response_model=list[ChatRead])
@@ -46,8 +31,12 @@ def list_chats(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    chats = session.exec(select(Chat).where(Chat.user_id == current_user.id)).all()
-    return [_chat_to_read(chat, session) for chat in chats]
+    chats = session.exec(
+        select(Chat)
+        .where(Chat.user_id == current_user.id)
+        .order_by(Chat.created_at.desc())
+    ).all()
+    return [chat_to_read(chat, session) for chat in chats]
 
 
 @router.post("", response_model=ChatRead)
@@ -74,7 +63,7 @@ def create_chat(
         session.add(greeting)
         session.commit()
 
-    return _chat_to_read(chat, session)
+    return chat_to_read(chat, session)
 
 
 @router.get("/{chat_id}", response_model=ChatRead)
@@ -82,7 +71,7 @@ def get_chat(
     chat: Chat = Depends(get_current_chat),
     session: Session = Depends(get_session),
 ):
-    return _chat_to_read(chat, session)
+    return chat_to_read(chat, session)
 
 
 @router.patch("/{chat_id}", response_model=ChatRead)
@@ -95,7 +84,16 @@ def update_chat(
     session.add(chat)
     session.commit()
     session.refresh(chat)
-    return _chat_to_read(chat, session)
+    return chat_to_read(chat, session)
+
+
+@router.delete("/{chat_id}", status_code=204)
+def delete_chat_endpoint(
+    chat: Chat = Depends(get_current_chat),
+    session: Session = Depends(get_session),
+):
+    delete_chat(session, chat)
+    session.commit()
 
 
 @router.get("/{chat_id}/messages", response_model=list[MessageRead])
@@ -116,9 +114,12 @@ def send_message(
     body: MessageCreate,
     chat: Chat = Depends(get_current_chat),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     if not os.getenv("OPENAI_API_KEY"):
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured")
+
+    ensure_demo_can_send(session, current_user)
 
     user_message = Message(
         chat_id=chat.id,
@@ -139,7 +140,7 @@ def send_message(
         .order_by(Message.created_at)
     ).all()
 
-    settings = _parse_chat_settings(chat)
+    settings = parse_chat_settings(chat)
     assistant_content = run_chat_graph(
         session=session,
         chat_id=chat.id,

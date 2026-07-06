@@ -2,12 +2,24 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.auth.deps import get_current_user
-from app.characters.schemas import CharacterCreate, CharacterRead
+from app.characters.schemas import CharacterCreate, CharacterRead, CharacterUpdate
+from app.chats.cleanup import delete_character_chats
 from app.db import get_session
 from app.models.character import Character
 from app.models.user import User
 
 router = APIRouter()
+
+
+def _get_owned_character(
+    character_id: int,
+    session: Session,
+    current_user: User,
+) -> Character:
+    character = session.get(Character, character_id)
+    if not character or character.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Character not found")
+    return character
 
 
 @router.get("", response_model=list[CharacterRead])
@@ -55,7 +67,45 @@ def get_character(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    character = session.get(Character, character_id)
-    if not character or character.owner_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Character not found")
+    return _get_owned_character(character_id, session, current_user)
+
+
+@router.put("/{character_id}", response_model=CharacterRead)
+def update_character(
+    character_id: int,
+    body: CharacterUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    character = _get_owned_character(character_id, session, current_user)
+
+    duplicate = session.exec(
+        select(Character).where(
+            Character.name == body.name,
+            Character.owner_id == current_user.id,
+            Character.id != character_id,
+        )
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Character name already in use")
+
+    character.name = body.name
+    character.persona = body.persona
+    character.start_message = body.start_message
+    character.avatar_url = body.avatar_url
+    session.add(character)
+    session.commit()
+    session.refresh(character)
     return character
+
+
+@router.delete("/{character_id}", status_code=204)
+def delete_character(
+    character_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    character = _get_owned_character(character_id, session, current_user)
+    delete_character_chats(session, character)
+    session.delete(character)
+    session.commit()

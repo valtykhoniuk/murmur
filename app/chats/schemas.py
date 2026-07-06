@@ -44,6 +44,9 @@ class ChatRead(BaseModel):
     user_id: int
     character_id: int
     character_name: str
+    character_avatar_url: str = ""
     created_at: datetime
     chat_settings: ChatSettings
+    preview: str | None = None
+    message_count: int = 0
 

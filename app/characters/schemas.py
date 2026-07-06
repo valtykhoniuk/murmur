@@ -15,3 +15,10 @@ class CharacterRead(BaseModel):
     persona: str
     start_message: str
     avatar_url: str
+
+
+class CharacterUpdate(BaseModel):
+    name: str
+    persona: str
+    start_message: str
+    avatar_url: str = ""
