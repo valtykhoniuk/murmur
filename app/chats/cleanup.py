@@ -6,17 +6,17 @@ from app.models.summary import Summary
 
 
 def delete_chat(session: Session, chat: Chat) -> None:
-    messages = session.exec(
-        select(Message).where(Message.chat_id == chat.id)
-    ).all()
-    for message in messages:
-        session.delete(message)
-
     summaries = session.exec(
         select(Summary).where(Summary.chat_id == chat.id)
     ).all()
     for summary in summaries:
         session.delete(summary)
+
+    messages = session.exec(
+        select(Message).where(Message.chat_id == chat.id)
+    ).all()
+    for message in messages:
+        session.delete(message)
 
     session.delete(chat)
 
