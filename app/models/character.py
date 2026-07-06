@@ -1,6 +1,5 @@
 from sqlmodel import Field, SQLModel
 
-
 class Character(SQLModel, table=True):
     __tablename__ = "characters"
 

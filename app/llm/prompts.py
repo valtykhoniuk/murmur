@@ -1,3 +1,18 @@
+SUMMARY_BLOCK = """
+## Conversation so far (summary)
+{summary}
+"""
+
+SUMMARIZE_PROMPT = """Summarize this conversation for future context.
+Keep: names, facts, plot points, relationship tone.
+Drop: filler and greetings.
+Write 3-6 sentences in the same language as the chat.
+Previous summary:
+{old_summary}
+Messages to add:
+{messages_text}
+"""
+
 SYSTEM_TEMPLATE = """You are {name}, a fictional character.
 Speak, behave, and think like this character.
 

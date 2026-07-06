@@ -15,7 +15,7 @@ from app.chats.schemas import (
     SendMessageResponse,
 )
 from app.db import get_session
-from app.llm.chat_service import generate_reply
+from app.llm.chat_service import run_chat_graph
 from app.models.character import Character
 from app.models.chat import Chat, DEFAULT_CHAT_SETTINGS
 from app.models.message import Message, MessageRole
@@ -140,7 +140,9 @@ def send_message(
     ).all()
 
     settings = _parse_chat_settings(chat)
-    assistant_content = generate_reply(
+    assistant_content = run_chat_graph(
+        session=session,
+        chat_id=chat.id,
         persona=character.persona,
         character_name=character.name,
         history=history,
