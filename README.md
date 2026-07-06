@@ -2,7 +2,10 @@
 
 FastAPI backend for **Murmur**, a Character.AI-style chat app: create characters, start chats, customize behavior, and talk to personas powered by OpenAI + LangGraph.
 
-Companion frontend: [murmur-web](../murmur-web) (separate repo).
+Companion frontend: [murmur-web](https://github.com/valtykhoniuk/murmur-web) (separate repo).
+
+**Live API:** https://murmur-oa8r.onrender.com  
+**Health:** https://murmur-oa8r.onrender.com/health
 
 ## Features
 
@@ -22,8 +25,6 @@ Companion frontend: [murmur-web](../murmur-web) (separate repo).
 ## Quick start (local)
 
 ### 1. PostgreSQL
-
-Create a database:
 
 ```bash
 createdb murmur
@@ -48,19 +49,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Health check: `GET http://localhost:8000/health`
-
-API docs: `http://localhost:8000/docs`
+- Health: `GET http://localhost:8000/health`
+- Docs: `http://localhost:8000/docs`
 
 ### 4. Seed users
 
 On startup, the app seeds users from `.env` if they don't exist:
 
-| Role   | Env vars              | Notes                          |
-|--------|-----------------------|--------------------------------|
-| owner  | `OWNER_EMAIL/PASSWORD`| Full access                    |
-| friend | `DARIIA_EMAIL/PASSWORD` | Full access                  |
+| Role   | Env vars                | Notes                        |
+|--------|-------------------------|------------------------------|
+| owner  | `OWNER_EMAIL/PASSWORD`  | Full access                  |
+| friend | `DARIIA_EMAIL/PASSWORD` | Full access                |
 | public | `DEMO_EMAIL/PASSWORD` | Demo account, 20-msg limit   |
+
+Use a valid email format (e.g. `owner@murmur.dev`) — login rejects invalid addresses with HTTP 422.
 
 ## API overview
 
@@ -87,26 +89,43 @@ All routes except `/auth/login`, `/auth/demo`, and `/health` require `Authorizat
 | `OPENAI_API_KEY` | yes | OpenAI API key |
 | `OPENAI_MODEL` | no | Default `gpt-4.1-mini` |
 | `DEMO_MESSAGE_LIMIT` | no | Default `20` — max user messages for `public` role |
+| `CORS_ORIGINS` | prod | Comma-separated frontend URLs |
 | `OWNER_EMAIL/PASSWORD` | no | Seed owner account |
 | `DARIIA_EMAIL/PASSWORD` | no | Seed friend account |
 | `DEMO_EMAIL/PASSWORD` | no | Seed demo account |
 
-## Deploy notes
+## Deploy (Neon + Render)
 
-Typical production setup:
+Production setup used for the live demo:
 
-1. **Backend** — Railway, Render, Fly.io, or any VPS running uvicorn behind HTTPS.
-2. **Database** — managed PostgreSQL (Neon, Supabase, RDS, etc.).
-3. Set all env vars in the host dashboard.
-4. Run with a process manager, e.g.:
+1. **Neon** — create a Postgres project, copy the `postgresql://...` connection string.
+2. **Render** — New Web Service → connect this repo.
+
+| Setting | Value |
+|---------|--------|
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+
+3. Add all env vars from `.env.example` in Render **Environment**.
+4. Set `DATABASE_URL` to the Neon connection string (not `localhost`).
+5. After deploying the frontend, set `CORS_ORIGINS`:
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
+http://localhost:5173,https://your-app.vercel.app
 ```
 
-5. Point the frontend `VITE_API_URL` to your deployed API origin (see murmur-web README).
+6. Redeploy if you change `CORS_ORIGINS`.
 
-CORS: if frontend and backend are on different origins, add a CORS middleware in `app/main.py` for your frontend URL.
+**Free tier note:** Render sleeps after ~15 min idle. The first request after sleep may take 30–60 seconds (cold start).
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| CORS / preflight 400 | Add your Vercel URL to `CORS_ORIGINS` and redeploy |
+| Login 422 | Email must be valid (`user@domain.tld`) |
+| 503 on chat | Check `OPENAI_API_KEY` on Render |
+| Empty Neon tables | Backend must start once with correct `DATABASE_URL` |
 
 ## Project structure
 
