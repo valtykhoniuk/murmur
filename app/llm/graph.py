@@ -9,8 +9,6 @@ from app.llm.history import to_langchain_messages
 from app.llm.prompts import SUMMARIZE_PROMPT, SUMMARY_BLOCK, build_system_prompt
 from app.models.message import MessageRole
 
-SUMMARIZE_THRESHOLD_MULTIPLIER = 2
-
 
 def build_chat_graph():
     graph = StateGraph(ChatGraphState)
@@ -79,9 +77,8 @@ def update_memory_node(state: ChatGraphState) -> dict:
     settings = state["settings"]
     max_messages = settings["max_messages"]
     history = state["history"]
-    threshold = max_messages * SUMMARIZE_THRESHOLD_MULTIPLIER
 
-    if len(history) <= threshold:
+    if len(history) <= max_messages:
         return {}
 
     old_summary = state.get("summary") or ""
