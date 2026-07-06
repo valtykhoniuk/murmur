@@ -106,6 +106,6 @@ def delete_character(
     current_user: User = Depends(get_current_user),
 ):
     character = _get_owned_character(character_id, session, current_user)
-    delete_character_chats(session, character)
+    delete_character_chats(session, character.id)
     session.delete(character)
     session.commit()

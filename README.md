@@ -4,8 +4,11 @@ FastAPI backend for **Murmur**, a Character.AI-style chat app: create characters
 
 Companion frontend: [murmur-web](https://github.com/valtykhoniuk/murmur-web) (separate repo).
 
-**Live API:** https://murmur-oa8r.onrender.com  
-**Health:** https://murmur-oa8r.onrender.com/health
+**Live API:** http://murmur.us-east-1.elasticbeanstalk.com  
+**Live app:** https://murmur-web-tawny.vercel.app  
+**Health:** http://murmur.us-east-1.elasticbeanstalk.com/health
+
+Production stack: **Neon** (Postgres) + **AWS Elastic Beanstalk** (API) + **Vercel** (frontend, proxies `/api` to EB).
 
 ## Features
 
@@ -90,42 +93,58 @@ All routes except `/auth/login`, `/auth/demo`, and `/health` require `Authorizat
 | `OPENAI_MODEL` | no | Default `gpt-4.1-mini` |
 | `DEMO_MESSAGE_LIMIT` | no | Default `20` — max user messages for `public` role |
 | `CORS_ORIGINS` | prod | Comma-separated frontend URLs |
+| `SQL_ECHO` | no | Set `true` to log SQL queries |
 | `OWNER_EMAIL/PASSWORD` | no | Seed owner account |
 | `DARIIA_EMAIL/PASSWORD` | no | Seed friend account |
 | `DEMO_EMAIL/PASSWORD` | no | Seed demo account |
 
-## Deploy (Neon + Render)
+## Deploy (Neon + AWS Elastic Beanstalk)
 
-Production setup used for the live demo:
+### 1. Database (Neon)
 
-1. **Neon** — create a Postgres project, copy the `postgresql://...` connection string.
-2. **Render** — New Web Service → connect this repo.
+Create a project at [neon.tech](https://neon.tech), copy the `postgresql://...` connection string.
 
-| Setting | Value |
-|---------|--------|
-| Build Command | `pip install -r requirements.txt` |
-| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+### 2. Elastic Beanstalk
 
-3. Add all env vars from `.env.example` in Render **Environment**.
-4. Set `DATABASE_URL` to the Neon connection string (not `localhost`).
-5. After deploying the frontend, set `CORS_ORIGINS`:
+1. [AWS Console](https://console.aws.amazon.com/elasticbeanstalk) → **Create application**
+2. Platform: **Python 3.11** on **Amazon Linux 2023**
+3. Preset: **Single instance** (t3.micro / t3.small)
+4. Upload a zip of the repo root — files at the top level (`app/`, `requirements.txt`, `Procfile`), not nested in a subfolder. See `.ebignore` for exclusions.
 
 ```bash
-http://localhost:5173,https://your-app.vercel.app
+cd murmur
+zip -r ../murmur-deploy.zip . -x "*.git*" -x ".venv/*" -x ".env" -x "__pycache__/*" -x "*.zip"
 ```
 
-6. Redeploy if you change `CORS_ORIGINS`.
+5. After the environment is **Ok**, open **Configuration** → **Environment properties** and set:
 
-**Free tier note:** Render sleeps after ~15 min idle. The first request after sleep may take 30–60 seconds (cold start).
+| Variable | Example |
+|----------|---------|
+| `DATABASE_URL` | Neon connection string |
+| `SECRET_KEY` | random secret |
+| `OPENAI_API_KEY` | your key |
+| `CORS_ORIGINS` | `http://localhost:5173,https://murmur-web-tawny.vercel.app` |
+| seed accounts | `OWNER_EMAIL/PASSWORD`, etc. |
+
+6. **Apply** — the environment redeploys with the new variables.
+
+### 3. Updates
+
+**Upload and deploy** a new zip (e.g. `version-1.3`). Environment variables are kept.
+
+### 4. Frontend (Vercel)
+
+The Vercel app proxies `/api/*` to this backend (EB is HTTP-only). Set `VITE_API_URL=/api` on the frontend — see [murmur-web README](https://github.com/valtykhoniuk/murmur-web).
 
 ### Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| CORS / preflight 400 | Add your Vercel URL to `CORS_ORIGINS` and redeploy |
+| 502 Bad Gateway | Missing env vars — add `DATABASE_URL`, `SECRET_KEY`, apply config |
+| Zip extract failed | Zip must contain `Procfile` at root, not inside a `murmur/` folder |
+| CORS 400 | Add Vercel URL to `CORS_ORIGINS` |
+| Delete character 500 | Deploy latest code (summaries deleted before messages) |
 | Login 422 | Email must be valid (`user@domain.tld`) |
-| 503 on chat | Check `OPENAI_API_KEY` on Render |
-| Empty Neon tables | Backend must start once with correct `DATABASE_URL` |
 
 ## Project structure
 
@@ -137,6 +156,9 @@ app/
   llm/           LangGraph, prompts, memory
   models/        SQLModel tables
   seed.py        User seeding on startup
+Procfile         EB process (gunicorn + uvicorn worker)
+application.py   EB entrypoint
+.ebextensions/  EB config (health check path)
 ```
 
 ## License
