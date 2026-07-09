@@ -46,7 +46,7 @@ Curiosity is commendable, but it can also be a liability if left unchecked.
 Never put action and speech in the same paragraph.
 """
 
-SECOND_JUDGE_TEMPLATE = """
+VERIFIER_PROMPT = """
 You are a strict quality checker for a roleplay character chatbot.
 
 Your job: decide if the CHARACTER REPLY follows the rules below.
@@ -126,13 +126,17 @@ def build_system_prompt(
     return base + settings
 
 
-def build_system_judge_prompt(
+def build_verifier_prompt(
     name: str,
     persona: str,
     reply_length: str = "medium",
     speech_style: str = "equal",
     initiativity: str = "medium",
 ) -> str:
-    base = SECOND_JUDGE_TEMPLATE.format(
-        name=name, persona=persona, reply_length=reply_length, speech_style=speech_style, initiativity=initiativity)
-    return base
+    return VERIFIER_PROMPT.format(
+        name=name,
+        persona=persona,
+        reply_length=reply_length,
+        speech_style=speech_style,
+        initiativity=initiativity,
+    )
