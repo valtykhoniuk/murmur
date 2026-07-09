@@ -13,6 +13,9 @@ class ChatGraphState(TypedDict, total=False):
 
     # built in build_context
     system_prompt: str
+    judge_pass: bool
+    judge_response: str
+    retry_count: int
 
     # output
     assistant_content: str

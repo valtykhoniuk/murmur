@@ -15,7 +15,7 @@ Production stack: **Neon** (Postgres) + **AWS Elastic Beanstalk** (API) + **Verc
 - JWT auth (owner, friend, demo/public roles)
 - CRUD for **characters** (create, read, update, delete)
 - **Chats** with per-chat settings (temperature, reply length, speech style, etc.)
-- **LangGraph** pipeline: build context → generate reply → rolling memory summary
+- **LangGraph** pipeline: build context → generate → LLM-as-judge → retry or summarize memory
 - **Demo rate limit**: public users capped at 20 user messages total (`DEMO_MESSAGE_LIMIT`)
 - Delete character (cascades chats/messages/summaries) or individual chats
 
@@ -82,6 +82,34 @@ Use a valid email format (e.g. `owner@murmur.dev`) — login rejects invalid add
 | POST | `/chats/{id}/message` | Send message → AI reply |
 
 All routes except `/auth/login`, `/auth/demo`, and `/health` require `Authorization: Bearer <token>`.
+
+## LangGraph pipeline
+
+Each `POST /chats/{id}/message` runs a compiled LangGraph (`app/llm/graph.py`). State is a shared dict (`ChatGraphState`) passed between nodes; each node reads from it and returns fields to merge in.
+
+```
+build_context → generate → check_response ──pass──→ update_memory → END
+                              │
+                              └──fail (retry < 2)──→ generate
+                              └──fail (retry ≥ 2)──→ update_memory → END
+```
+
+| Node | What it does |
+|------|----------------|
+| `build_context` | Builds system prompt from persona, chat settings, and rolling summary |
+| `generate` | Calls the character LLM (temperature + max tokens from chat settings) |
+| `check_response` | **Second judge** — separate LLM (`temperature=0`) scores the draft reply against persona, format, and settings; returns `{"pass": bool, "reason": "..."}` |
+| `update_memory` | If history exceeds `max_messages`, summarizes older messages into `summaries` table |
+
+**Conditional routing** (`route_after_judge`) runs *after* `check_response` finishes — not at graph build time. The router reads `judge_pass` and `retry_count` from state:
+
+- `pass=true` → save memory, return reply
+- `pass=false` and `retry_count < 2` → regenerate
+- `pass=false` and `retry_count ≥ 2` → accept last draft (avoid infinite loops)
+
+Judge prompt: `SECOND_JUDGE_TEMPLATE` in `app/llm/prompts.py`. Chain: `build_second_judge_chain` in `app/llm/chain.py`.
+
+If the judge returns invalid JSON, the reply is allowed through (logged warning) so a bad judge call does not break chat.
 
 ## Environment variables
 
@@ -153,7 +181,7 @@ app/
   auth/          JWT login, demo, /me
   characters/    Character CRUD
   chats/         Chats, messages, demo limit, cleanup
-  llm/           LangGraph, prompts, memory
+  llm/           LangGraph, second judge, prompts, memory
   models/        SQLModel tables
   seed.py        User seeding on startup
 Procfile         EB process (gunicorn + uvicorn worker)

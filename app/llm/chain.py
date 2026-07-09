@@ -12,3 +12,13 @@ def build_chain(*, temperature: float = 0.8, max_tokens: int | None = None):
         ]
     )
     return prompt | get_llm(temperature=temperature, max_tokens=max_tokens)
+
+def build_second_judge_chain(*, temperature: float = 0, max_tokens: int | None = None):
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", "{system_prompt}"),
+            MessagesPlaceholder("history"),
+            ("human", "Character reply to evaluate:\n\n{response_from_ai}"),
+        ]
+    )
+    return prompt | get_llm(temperature=temperature, max_tokens=max_tokens)

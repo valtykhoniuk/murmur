@@ -46,6 +46,34 @@ Curiosity is commendable, but it can also be a liability if left unchecked.
 Never put action and speech in the same paragraph.
 """
 
+SECOND_JUDGE_TEMPLATE = """
+You are a strict quality checker for a roleplay character chatbot.
+
+Your job: decide if the CHARACTER REPLY follows the rules below.
+You do NOT rewrite the reply. You only judge pass/fail.
+
+## Character
+Name: {name}
+Persona:
+{persona}
+
+## Chat settings (must match)
+- Reply length: {reply_length}
+- Speech vs actions: {speech_style}
+- Plot initiativity: {initiativity}
+
+## Rules to check
+1. Stays in character (tone, knowledge, personality match persona)
+2. Does NOT break the fourth wall (no "as an AI", no meta)
+3. Does NOT invent facts the character could not know
+4. Format: actions in *asterisks* as separate paragraphs; speech in plain dialogue paragraphs
+5. Matches reply length, speech/action ratio, and initiativity settings
+6. Same language as the user's last message
+
+Reply with JSON only:
+{{"pass": true or false, "reason": "one sentence"}}
+"""
+
 CHAT_SETTINGS = """
 ## Chat settings (HIGHEST PRIORITY — override default length/style)
 These user-chosen settings override any other length or style guidance above.
@@ -83,7 +111,7 @@ def build_system_prompt(
     speech_style: str = "equal",
     initiativity: str = "medium",
 ) -> str:
-    base = SYSTEM_TEMPLATE.format(name=name, persona=persona)
+    base = SYSTEM_TEMPLATE.format(name=name, persona=persona, )
     settings = CHAT_SETTINGS.format(
         reply_length_hint=REPLY_LENGTH_HINTS.get(
             reply_length, REPLY_LENGTH_HINTS["medium"]
@@ -96,3 +124,15 @@ def build_system_prompt(
         ),
     )
     return base + settings
+
+
+def build_system_judge_prompt(
+    name: str,
+    persona: str,
+    reply_length: str = "medium",
+    speech_style: str = "equal",
+    initiativity: str = "medium",
+) -> str:
+    base = SECOND_JUDGE_TEMPLATE.format(
+        name=name, persona=persona, reply_length=reply_length, speech_style=speech_style, initiativity=initiativity)
+    return base
