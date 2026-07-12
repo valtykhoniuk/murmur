@@ -8,13 +8,14 @@ from sqlmodel import Session, select
 from app.auth.router import router as auth_router
 from app.characters.router import router as characters_router
 from app.chats.router import router as chats_router
-from app.db import engine, get_session
+from app.db import engine, get_session, init_db
 from app.models.user import User
 from app.seed import seed_users
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     with Session(engine) as session:
         seed_users(session)
     yield

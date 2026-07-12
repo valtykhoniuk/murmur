@@ -1,5 +1,7 @@
 import os
+import time
 
+from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import DATABASE_URL
@@ -20,4 +22,13 @@ def get_session():
         yield session
 
 
-SQLModel.metadata.create_all(engine)
+def init_db(max_retries: int = 5, retry_delay_seconds: float = 1.0) -> None:
+    """Create tables, retrying while Postgres (e.g. Neon) wakes from sleep."""
+    for attempt in range(max_retries):
+        try:
+            SQLModel.metadata.create_all(engine)
+            return
+        except OperationalError:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(retry_delay_seconds)

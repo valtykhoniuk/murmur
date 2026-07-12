@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.auth.security import hash_password
@@ -35,13 +36,17 @@ def seed_users(session: Session) -> None:
                 role=role,
             )
         )
-
-    session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            # Another gunicorn worker may have inserted the same user on startup.
+            session.rollback()
 
 
 if __name__ == "__main__":
-    from app.db import engine
+    from app.db import engine, init_db
 
+    init_db()
     with Session(engine) as session:
         seed_users(session)
     print("Seed done.")
